@@ -15,7 +15,7 @@ interface LoginFormValues {
 interface LoginResponse {
   EC: number;
   EM?: string;
-  access_token?: string;
+  token?: string;
   user?: {
     email?: string;
     name?: string;
@@ -31,17 +31,22 @@ const LoginPage: React.FC = () => {
       const { email, password } = values;
       const res = (await loginApi(email, password)) as unknown as LoginResponse;
 
-      if (res) {
-        if (res.access_token) {
-          localStorage.setItem("access_token", res.access_token);
+      if (res && res.EC === 0) {
+        // Lưu token
+        if (res.token) {
+          localStorage.setItem("access_token", res.token);
         }
+
+        // Lưu user data
+        const userData = {
+          email: res?.user?.email ?? "",
+          name: res?.user?.name ?? "",
+        };
+        localStorage.setItem("user_data", JSON.stringify(userData));
 
         setAuth({
           isAuthenticated: true,
-          user: {
-            email: res?.user?.email ?? "",
-            name: res?.user?.name ?? "",
-          },
+          user: userData,
         });
 
         notification.success({
@@ -53,7 +58,7 @@ const LoginPage: React.FC = () => {
       } else {
         notification.error({
           message: "Login failed",
-          description: res?? "Something went wrong",
+          description: res?.EM ?? "Something went wrong",
         });
       }
     } catch{

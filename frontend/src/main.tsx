@@ -8,6 +8,8 @@ import RegisterPage from "./pages/register";
 import LoginPage from "./pages/login";
 import HomePage from "./pages/home";
 import UserPage from "./pages/user";
+import ProductsPage from "./pages/products";
+import AddProductPage from "./pages/add-product"; // Import AddProductPage
 import { AuthWrapper } from "./components/context/auth.context";
 
 // router type an toàn hơn với TS
@@ -19,6 +21,14 @@ const router = createBrowserRouter([
       {
         index: true,
         element: <HomePage />,
+      },
+      {
+        path: "/products",
+        element: <ProductsPage />
+      },
+      {
+        path: "/add-product",
+        element: <AddProductPage />
       },
       {
         path: "user",

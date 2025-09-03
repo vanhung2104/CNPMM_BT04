@@ -1,5 +1,5 @@
 import { useContext, useState } from "react";
-import { UsergroupAddOutlined, HomeOutlined, SettingOutlined } from "@ant-design/icons";
+import { UsergroupAddOutlined, HomeOutlined, SettingOutlined, ShoppingCartOutlined } from "@ant-design/icons";
 import { Menu } from "antd";
 import type { MenuProps } from "antd";
 import { Link, useNavigate } from "react-router-dom";
@@ -24,6 +24,11 @@ const Header = () => {
       key: "home",
       icon: <HomeOutlined />,
     },
+    {
+    label: <Link to="/products">Products</Link>,
+    key: "products",
+    icon: <ShoppingCartOutlined />,
+    },
     ...(isAuthenticated
       ? [
           {
@@ -34,7 +39,7 @@ const Header = () => {
         ]
       : []),
     {
-      label: `Welcome ${user?.email ?? "Guest"}`,
+      label: `Welcome ${user?.name ?? "Guest"}`,
       key: "SubMenu",
       icon: <SettingOutlined />,
       children: isAuthenticated
