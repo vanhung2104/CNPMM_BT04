@@ -14,6 +14,9 @@ export interface Product {
   category: string;
   image: string;
   inStock: boolean;
+  views?: number;
+  promotion?: number;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -39,6 +42,22 @@ export interface ApiResponse<T = unknown> {
   data: T;
 }
 
+export interface SearchParams {
+  q?: string;
+  page?: number;
+  limit?: number;
+  category?: string;
+  priceMin?: number;
+  priceMax?: number;
+  promotionMin?: number;
+  promotionMax?: number;
+  viewsMin?: number;
+  viewsMax?: number;
+  inStock?: boolean;
+  sortBy?: 'createdAt' | 'price' | 'views' | 'promotion';
+  sortOrder?: 'asc' | 'desc';
+}
+
 
 const createUserApi = (email: string, name: string, password: string) => {
   const URL_API = "/v1/api/register";
@@ -55,7 +74,7 @@ const loginApi = (email: string, password: string) => {
 
 
 const getUserApi = () => {
-  const URL_API = "/v1/api/user";
+  const URL_API = "/v1/api/account";
   return axios.get<ApiResponse<User>>(URL_API);
 };
 
@@ -74,4 +93,14 @@ const getCategoriesApi = () => {
   return axios.get<ApiResponse<string[]>>(URL_API);
 };
 
-export { createUserApi, loginApi, getUserApi, getProductsApi, createProductApi, getCategoriesApi };
+const searchProductsApi = (params: SearchParams) => {
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v === undefined || v === null || v === '') return;
+    query.append(k, String(v));
+  });
+  const URL_API = `/v1/api/products/search?${query.toString()}`;
+  return axios.get<ProductsResponse>(URL_API);
+};
+
+export { createUserApi, loginApi, getUserApi, getProductsApi, createProductApi, getCategoriesApi, searchProductsApi };

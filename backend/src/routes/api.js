@@ -1,6 +1,6 @@
 const express = require('express');
 const { createUser, handleLogin, getUsers, getAccount } = require('../controllers/userController');
-const { getProducts, createProduct, getCategories } = require('../controllers/productController');
+const { getProducts, createProduct, getCategories, searchProducts } = require('../controllers/productController');
 const auth = require('../middleware/auth');
 const delay = require('../middleware/delay');
 
@@ -18,5 +18,6 @@ routerAPI.get("/account", delay, getAccount);
 routerAPI.get('/products', getProducts);
 routerAPI.post('/products', createProduct);
 routerAPI.get('/categories', getCategories);
+routerAPI.get('/products/search', searchProducts);
 
 module.exports = routerAPI;

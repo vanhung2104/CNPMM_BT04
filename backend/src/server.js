@@ -4,6 +4,7 @@ const express = require('express');
 const configViewEngine = require('./config/viewEngine');
 const apiRouter = require('./routes/api');
 const connection = require('./config/database');
+const { ensureProductIndexAndReindex } = require('./services/productService');
 const {getHomePage} = require('./controllers/homeController');
 const cors = require('cors');
 const app = express();
@@ -21,8 +22,10 @@ app.use("/", webAPI);
 app.use("/v1/api/", apiRouter);
 (async () => {
     try {
-        await connection();
-        app.listen(PORT, () => {
+    await connection();
+    // Ensure Elasticsearch index exists and seed data if empty (no-op if ES disabled)
+    await ensureProductIndexAndReindex();
+    app.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
         });
     } catch (error) {

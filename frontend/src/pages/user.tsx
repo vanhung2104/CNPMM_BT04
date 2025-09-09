@@ -14,7 +14,7 @@ const UserPage = () => {
       } else {
         notification.error({
           message: "Unauthorized",
-          description: res.message,
+          description: res.EM,
         });
       }
     };

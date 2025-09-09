@@ -14,6 +14,7 @@ interface ProductFormValues {
   category: string;
   image?: string;
   inStock: boolean;
+  promotion?: number;
 }
 
 const AddProductPage: React.FC = () => {
@@ -33,7 +34,8 @@ const AddProductPage: React.FC = () => {
         price: values.price,
         category: values.category,
         image: values.image || 'https://via.placeholder.com/300x200',
-        inStock: values.inStock ?? true
+  inStock: values.inStock ?? true,
+  promotion: values.promotion ?? 0
       };
 
       const response = await createProductApi(productData);
@@ -197,6 +199,23 @@ const AddProductPage: React.FC = () => {
                     </Button>
                   </Col>
                 </Row>
+                    <Form.Item
+                      label="Giảm giá (%)"
+                      name="promotion"
+                      initialValue={0}
+                      rules={[
+                        { type: 'number', min: 0, max: 100, message: 'Giảm giá phải trong khoảng 0-100%' }
+                      ]}
+                    >
+                      <InputNumber
+                        style={{ width: '100%' }}
+                        placeholder="Nhập % giảm giá"
+                        min={0}
+                        max={100}
+                        step={1}
+                        addonAfter="%"
+                      />
+                    </Form.Item>
               </Form.Item>
             </Form>
           </Card>

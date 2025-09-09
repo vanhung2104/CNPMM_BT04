@@ -1,20 +1,27 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Card, Col, Row, Select, Spin, Typography, Image, Button, Empty } from 'antd';
-import { getProductsApi, getCategoriesApi } from '../util/api';
-import type { Product } from '../util/api';
+import { Card, Col, Row, Spin, Typography, Image, Button, Empty } from 'antd';
+import { getCategoriesApi, searchProductsApi } from '../util/api';
+import type { Product, SearchParams } from '../util/api';
 import { ShoppingCartOutlined, PlusOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
+import ProductFilter from '../components/product-filter';
 
 const { Title, Text } = Typography;
-const { Option } = Select;
-
 interface ProductsState {
   products: Product[];
   loading: boolean;
   hasMore: boolean;
   categories: string[];
-  selectedCategory: string;
   currentPage: number;
+  // Filters
+  q: string;
+  selectedCategory: string;
+  inStockOnly: boolean;
+  priceRange: [number, number];
+  promotionRange: [number, number];
+  viewsRange: [number, number];
+  sortBy: 'createdAt' | 'price' | 'views' | 'promotion';
+  sortOrder: 'asc' | 'desc';
 }
 
 const ProductsPage: React.FC = () => {
@@ -24,19 +31,53 @@ const ProductsPage: React.FC = () => {
     loading: false,
     hasMore: true,
     categories: [],
+    currentPage: 1,
+    q: '',
     selectedCategory: 'all',
-    currentPage: 1
+    inStockOnly: false,
+    priceRange: [0, 100000000],
+    promotionRange: [0, 100],
+    viewsRange: [0, 1000000],
+    sortBy: 'createdAt',
+    sortOrder: 'desc',
   });
 
   const isLoadingRef = useRef(false);
+  // Keep the last applied filters used for querying (only updated when pressing search)
+  const appliedRef = useRef({
+    q: '',
+    selectedCategory: 'all',
+    inStockOnly: false,
+    priceRange: [0, 100000000] as [number, number],
+    promotionRange: [0, 100] as [number, number],
+    viewsRange: [0, 1000000] as [number, number],
+    sortBy: 'createdAt' as ProductsState['sortBy'],
+    sortOrder: 'desc' as ProductsState['sortOrder'],
+  });
+  // Whether user has performed a search; guard loading until then
+  const hasSearchedRef = useRef(false);
 
   useEffect(() => {
     loadCategories();
   }, []);
 
+  // Auto load once on first mount (initial list)
   useEffect(() => {
+    appliedRef.current = {
+      q: state.q,
+      selectedCategory: state.selectedCategory,
+      inStockOnly: state.inStockOnly,
+      priceRange: state.priceRange,
+      promotionRange: state.promotionRange,
+      viewsRange: state.viewsRange,
+      sortBy: state.sortBy,
+      sortOrder: state.sortOrder,
+    };
+    hasSearchedRef.current = true;
+    resetList();
     loadProducts(true);
-  }, [state.selectedCategory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Load categories
   const loadCategories = async () => {
@@ -50,27 +91,52 @@ const ProductsPage: React.FC = () => {
     }
   };
 
-  // Load products
-  const loadProducts = async (reset: boolean = false) => {
-
+  // Load products via search API
+  const loadProducts = useCallback(async (reset: boolean = false) => {
     if (isLoadingRef.current) return;
-
     isLoadingRef.current = true;
     setState(prev => ({ ...prev, loading: true }));
 
     try {
       const page = reset ? 1 : state.currentPage;
-      const response = await getProductsApi(page, 5, state.selectedCategory);
-      
+      // Use applied filters snapshot (only set when pressing search)
+      const filters = appliedRef.current;
+      const [priceMin, priceMax] = filters.priceRange;
+      const [promotionMin, promotionMax] = filters.promotionRange;
+      const [viewsMin, viewsMax] = filters.viewsRange;
+
+      const params: SearchParams = {
+        q: filters.q,
+        page,
+        limit: 8,
+        sortBy: filters.sortBy,
+        sortOrder: filters.sortOrder,
+      };
+      if (filters.inStockOnly) {
+        params.inStock = true;
+      }
+      if (filters.selectedCategory && filters.selectedCategory !== 'all') {
+        params.category = filters.selectedCategory;
+      }
+
+      // Only include ranges if user changed from defaults
+      if (priceMin !== 0) params.priceMin = priceMin;
+      if (priceMax !== 100000000) params.priceMax = priceMax;
+      if (promotionMin !== 0) params.promotionMin = promotionMin;
+      if (promotionMax !== 100) params.promotionMax = promotionMax;
+      if (viewsMin !== 0) params.viewsMin = viewsMin;
+      if (viewsMax !== 1000000) params.viewsMax = viewsMax;
+
+      const response = await searchProductsApi(params);
+
       if (response.EC === 0) {
         const { products, pagination } = response.data;
-        
         setState(prev => ({
           ...prev,
           products: reset ? products : [...prev.products, ...products],
           hasMore: pagination.hasMore,
           currentPage: pagination.currentPage,
-          loading: false
+          loading: false,
         }));
       } else {
         setState(prev => ({ ...prev, loading: false }));
@@ -79,20 +145,14 @@ const ProductsPage: React.FC = () => {
       console.error('Error loading products:', error);
       setState(prev => ({ ...prev, loading: false }));
     } finally {
-
       isLoadingRef.current = false;
     }
-  };
+  }, [state.currentPage]);
 
-  const handleCategoryChange = (category: string) => {
-    setState(prev => ({
-      ...prev,
-      selectedCategory: category,
-      products: [],
-      currentPage: 1,
-      hasMore: true
-    }));
-  };
+  // Reset list helper
+  const resetList = useCallback(() => {
+    setState(prev => ({ ...prev, products: [], currentPage: 1, hasMore: true }));
+  }, []);
 
   const handleScroll = useCallback(() => {
     const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
@@ -101,16 +161,26 @@ const ProductsPage: React.FC = () => {
     
     const isNearBottom = scrollTop + clientHeight >= scrollHeight - 200;
     
-    if (isNearBottom && !isLoadingRef.current && !state.loading && state.hasMore) {
+  if (
+      isNearBottom &&
+      !isLoadingRef.current &&
+      !state.loading &&
+      state.hasMore &&
+      hasSearchedRef.current
+    ) {
       setState(prev => ({ ...prev, currentPage: prev.currentPage + 1 }));
     }
   }, [state.loading, state.hasMore]);
 
   useEffect(() => {
-    if (state.currentPage > 1 && !isLoadingRef.current) {
+    if (state.currentPage > 1 && !isLoadingRef.current && hasSearchedRef.current) {
       loadProducts(false);
     }
+    // Intentionally not depending on loadProducts to avoid re-run on filter changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.currentPage]);
+
+  // Remove auto-loading on filter/sort changes; only load on explicit search
 
   useEffect(() => {
     window.addEventListener('scroll', handleScroll);
@@ -134,17 +204,44 @@ const ProductsPage: React.FC = () => {
       </div>
       
       <div style={{ marginBottom: '20px' }}>
-        <Text strong>Danh mục: </Text>
-        <Select
-          value={state.selectedCategory}
-          onChange={handleCategoryChange}
-          style={{ width: 200, marginLeft: 10 }}
-        >
-          <Option value="all">Tất cả</Option>
-          {state.categories.map(category => (
-            <Option key={category} value={category}>{category}</Option>
-          ))}
-        </Select>
+        <ProductFilter
+          categories={state.categories}
+          q={state.q}
+          selectedCategory={state.selectedCategory}
+          inStockOnly={state.inStockOnly}
+          priceRange={state.priceRange}
+          promotionRange={state.promotionRange}
+          viewsRange={state.viewsRange}
+          sortBy={state.sortBy}
+          sortOrder={state.sortOrder}
+          onSearch={() => {
+            // Capture current filters as the applied snapshot
+            appliedRef.current = {
+              q: state.q,
+              selectedCategory: state.selectedCategory,
+              inStockOnly: state.inStockOnly,
+              priceRange: state.priceRange,
+              promotionRange: state.promotionRange,
+              viewsRange: state.viewsRange,
+              sortBy: state.sortBy,
+              sortOrder: state.sortOrder,
+            };
+            hasSearchedRef.current = true;
+            resetList();
+            loadProducts(true);
+          }}
+          onQChange={(q) => setState(prev => ({ ...prev, q }))}
+          onCategoryChange={(category) => { setState(prev => ({ ...prev, selectedCategory: category })); }}
+          onInStockChange={(v) => { setState(prev => ({ ...prev, inStockOnly: v })); }}
+          onPriceChange={(range) => setState(prev => ({ ...prev, priceRange: range }))}
+          
+          onPromotionChange={(range) => setState(prev => ({ ...prev, promotionRange: range }))}
+          
+          onViewsChange={(range) => setState(prev => ({ ...prev, viewsRange: range }))}
+          
+          onSortByChange={(v) => { setState(prev => ({ ...prev, sortBy: v })); }}
+          onSortOrderChange={(v) => { setState(prev => ({ ...prev, sortOrder: v })); }}
+        />
       </div>
 
       {state.products.length === 0 && !state.loading ? (
@@ -180,9 +277,24 @@ const ProductsPage: React.FC = () => {
                     <div>
                       <Text type="secondary">{product.description}</Text>
                       <br />
-                      <Text strong style={{ color: '#ff4d4f', fontSize: '16px' }}>
-                        {product.price.toLocaleString('vi-VN')} VNĐ
-                      </Text>
+                      {product.promotion && product.promotion > 0 ? (
+                        <>
+                          <Text delete type="secondary">
+                            {product.price.toLocaleString('vi-VN')} VNĐ
+                          </Text>
+                          <br />
+                          <Text strong style={{ color: '#ff4d4f', fontSize: '16px' }}>
+                            {(Math.round(product.price * (1 - product.promotion / 100))).toLocaleString('vi-VN')} VNĐ
+                          </Text>
+                          <Text type="danger" style={{ marginLeft: 8 }}>
+                            -{product.promotion}%
+                          </Text>
+                        </>
+                      ) : (
+                        <Text strong style={{ color: '#ff4d4f', fontSize: '16px' }}>
+                          {product.price.toLocaleString('vi-VN')} VNĐ
+                        </Text>
+                      )}
                       <br />
                       <Text type="secondary">Danh mục: {product.category}</Text>
                     </div>

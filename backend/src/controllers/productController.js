@@ -1,4 +1,4 @@
-const { getProductsService, createProductService, getCategoriesService } = require('../services/productService');
+const { getProductsService, createProductService, getCategoriesService, searchProductsService, indexProductToEs } = require('../services/productService');
 
 const getProducts = async (req, res) => {
     try {
@@ -29,7 +29,7 @@ const getProducts = async (req, res) => {
 
 const createProduct = async (req, res) => {
     try {
-        const { name, description, price, category, image } = req.body;
+    const { name, description, price, category, image, inStock, views, promotion, tags } = req.body;
         
         if (!name || !description || !price || !category) {
             return res.status(400).json({
@@ -38,7 +38,19 @@ const createProduct = async (req, res) => {
             });
         }
 
-        const productData = { name, description, price, category, image };
+        // Normalize and validate promotion (0-100)
+        let promo = promotion !== undefined ? Number(promotion) : 0;
+        if (Number.isNaN(promo)) promo = 0;
+        if (promo < 0) promo = 0;
+        if (promo > 100) promo = 100;
+
+        const productData = { 
+            name, description, price, category, image,
+            inStock: typeof inStock === 'boolean' ? inStock : true,
+            views: views ? Number(views) : 0,
+            promotion: promo,
+            tags: Array.isArray(tags) ? tags : []
+        };
         const data = await createProductService(productData);
         
         if (!data) {
@@ -47,7 +59,9 @@ const createProduct = async (req, res) => {
                 EM: 'Không thể tạo sản phẩm'
             });
         }
-        
+        // Index to Elasticsearch (best-effort)
+        indexProductToEs(data);
+
         return res.status(201).json({
             EC: 0,
             EM: 'Tạo sản phẩm thành công',
@@ -90,5 +104,14 @@ const getCategories = async (req, res) => {
 module.exports = {
     getProducts,
     createProduct,
-    getCategories
+    getCategories,
+    async searchProducts(req, res) {
+        try {
+            const data = await searchProductsService(req.query);
+            return res.status(200).json({ EC: 0, EM: 'Tìm kiếm thành công', data });
+        } catch (e) {
+            console.error('Search products error:', e);
+            return res.status(500).json({ EC: 1, EM: 'Lỗi server' });
+        }
+    }
 };

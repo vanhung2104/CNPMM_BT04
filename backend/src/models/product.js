@@ -25,6 +25,20 @@ const productSchema = new mongoose.Schema({
     inStock: {
         type: Boolean,
         default: true
+    },
+    // Extra fields for search/filter
+    views: {
+        type: Number,
+        default: 0
+    },
+    promotion: {
+        // percent discount 0..100
+        type: Number,
+        default: 0
+    },
+    tags: {
+        type: [String],
+        default: []
     }
 }, {
     timestamps: true
