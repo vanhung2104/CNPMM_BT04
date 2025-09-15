@@ -1,17 +1,15 @@
 import { notification, Descriptions } from "antd";
-import { useEffect, useState } from "react";
+import { useContext, useEffect } from "react";
 import { getUserApi} from "../util/api";
-import type { User } from "../util/api";
+import { AuthContext } from "../components/context/auth.context";
 
 const UserPage = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const { user } = useContext(AuthContext);
 
   useEffect(() => {
     const fetchUser = async () => {
       const res = await getUserApi();
-      if (res.data) {
-        setUser(res.data); // res.data là User
-      } else {
+      if (!res.data) {
         notification.error({
           message: "Unauthorized",
           description: res.EM,
